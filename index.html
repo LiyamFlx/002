@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EngageSense Prototype</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      padding: 20px;
+      text-align: center;
+      background: #1f1f1f;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .container {
+      text-align: center;
+      padding: 20px;
+    }
+    canvas {
+      display: block;
+      margin: 20px auto;
+      background: #000000;
+      border: 2px solid #ffffff;
+    }
+    .controls button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .controls button.start {
+      background-color: #28a745;
+      color: #ffffff;
+    }
+    .controls button.stop {
+      background-color: #dc3545;
+      color: #ffffff;
+    }
+    .metrics {
+      margin-top: 20px;
+    }
+    .metrics span {
+      font-size: 18px;
+      display: block;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+
+<header>EngageSense Prototype</header>
+
+<div class="container">
+  <canvas id="waveform" width="800" height="200"></canvas>
+  
+  <div class="controls">
+    <button class="start" onclick="startRecording()">Start Recording</button>
+    <button class="stop" onclick="stopRecording()" disabled>Stop Recording</button>
+  </div>
+  
+  <div class="metrics">
+    <span>Pitch: <strong id="pitch">N/A</strong></span>
+    <span>Loudness: <strong id="loudness">N/A</strong></span>
+    <span>Engagement Level: <strong id="engagement">N/A</strong></span>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script>
+  let audioCtx, analyser, scriptProcessor, stream;
+  const canvas = document.getElementById('waveform');
+  const canvasCtx = canvas.getContext('2d');
+
+  function startRecording() {
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(s => {
+        stream = s;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        scriptProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
+
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(audioCtx.destination);
+
+        scriptProcessor.onaudioprocess = visualizeAndAnalyze;
+
+        document.querySelector('.start').disabled = true;
+        document.querySelector('.stop').disabled = false;
+      })
+      .catch(error => console.error('Error accessing microphone:', error));
+  }
+
+  function stopRecording() {
+    stream.getTracks().forEach(track => track.stop());
+    scriptProcessor.disconnect();
+    analyser.disconnect();
+    audioCtx.close();
+
+    document.querySelector('.start').disabled = false;
+    document.querySelector('.stop').disabled = true;
+    alert('Recording stopped. Analysis completed.');
+  }
+
+  function visualizeAndAnalyze(event) {
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    // Clear canvas
+    canvasCtx.fillStyle = 'black';
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw waveform
+    canvasCtx.lineWidth = 2;
+    canvasCtx.strokeStyle = 'lime';
+    canvasCtx.beginPath();
+
+    let sliceWidth = canvas.width / bufferLength;
+    let x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      let v = dataArray[i] / 128.0;
+      let y = (v * canvas.height) / 2;
+
+      if (i === 0) {
+        canvasCtx.moveTo(x, y);
+      } else {
+        canvasCtx.lineTo(x, y);
+      }
+
+      x += sliceWidth;
+    }
+    canvasCtx.lineTo(canvas.width, canvas.height / 2);
+    canvasCtx.stroke();
+
+    // Perform "analysis" (placeholder values for now)
+    const pitch = Math.random() * 1000 + 100; // Placeholder: Random pitch value
+    const loudness = Math.random() * 100; // Placeholder: Random loudness
+    const engagement = pitch > 500 ? 'High' : 'Moderate'; // Placeholder: Engagement logic
+
+    document.getElementById('pitch').innerText = `${pitch.toFixed(2)} Hz`;
+    document.getElementById('loudness').innerText = `${loudness.toFixed(2)} dB`;
+    document.getElementById('engagement').innerText = engagement;
+  }
+</script>
+
+</body>
+</html>
